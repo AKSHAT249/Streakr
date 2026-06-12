@@ -61,4 +61,67 @@
     background-color: rgba(127, 119, 221, 0.2);
     border-right: 2px solid var(--color-primary);
   }
+
+
+
+}
+
+
+@layer components {
+  .modal-overlay {
+    @apply fixed inset-0 bg-black/20 flex items-center justify-center p-6;
+  }
+
+  .modal {
+    @apply bg-white w-full max-w-3xl rounded-3xl p-8 shadow-lg;
+  }
+
+  .modal h2 {
+    @apply text-3xl font-semibold text-slate-900 mb-8;
+  }
+
+  .field {
+    @apply flex flex-col gap-2 mb-5;
+  }
+
+  .field label {
+    @apply text-sm font-semibold tracking-wider text-gray-500 uppercase;
+  }
+
+  .field input,
+  .field select {
+    @apply w-full h-14 px-4 border border-gray-300 rounded-xl
+           text-lg outline-none focus:ring-2 focus:ring-violet-400;
+  }
+
+  .row {
+    @apply grid grid-cols-2 gap-4;
+  }
+
+  .pill-group {
+    @apply flex gap-3 flex-wrap;
+  }
+
+  .pill {
+    @apply px-5 py-2 rounded-xl bg-stone-100 text-gray-700
+           border border-transparent transition;
+  }
+
+  .pill.active {
+    @apply bg-violet-100 text-violet-700 border-violet-300;
+  }
+
+  .actions {
+    @apply flex justify-end gap-3 mt-8;
+  }
+
+  .cancel {
+    @apply px-6 py-3 border border-gray-300 rounded-xl
+           text-gray-700 hover:bg-gray-50;
+  }
+
+  .save {
+    @apply px-6 py-3 bg-violet-500 text-white rounded-xl
+           hover:bg-violet-600 font-medium;
+  }
 }

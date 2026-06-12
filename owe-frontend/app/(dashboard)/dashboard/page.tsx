@@ -1,6 +1,19 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react';
+import { SignOutButton, useUser } from '@clerk/nextjs';
+import AddTask from '@/components/AddTask';
+import Box from '@mui/material/Box';
+import Modal from '@mui/material/Modal';
+import Button from '@mui/material/Button';
+import { useDispatch } from "react-redux";
+import { useSelector } from "react-redux";
+
+
+const style = {
+  position: 'relative',
+  display: 'flex',
+};
 
 const tasks = [
   { name: 'Review design mockups', category: 'Work',     color: '#7F77DD', catClass: 'cat-work',     days: [true,  true,  true,  false, false], pct: 60,  done: true  },
@@ -23,6 +36,30 @@ const catStyle: Record<string, string> = {
 
 export default function DashboardPage() {
   const chartRef = useRef<HTMLCanvasElement>(null)
+  const [addTaskModal, setAddTaskModal] = useState(false);
+  const currentUser = useSelector(
+    (state) => state.currentUser.user
+  );
+  const { user } = useUser();
+
+  console.log("qwsdfrgtreqweer", currentUser)
+  const [taskData, setTaskData] = useState({
+    taskName:'',
+    category:'work',
+    priority:'high',
+    repeat:'',
+    userId:user?.id
+  });
+
+  console.log('qswdf', taskData)
+
+  const handleClose = () => {
+    setAddTaskModal(false);
+  }
+
+
+
+  
 
   useEffect(() => {
     let chart: unknown = null
@@ -88,12 +125,20 @@ export default function DashboardPage() {
             </svg>
             Search
           </button>
-          <button className="btn-primary flex items-center gap-2">
+          <button onClick={()=> setAddTaskModal(true)} className="btn-primary flex items-center gap-2">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round">
               <line x1="7" y1="1" x2="7" y2="13" /><line x1="1" y1="7" x2="13" y2="7" />
             </svg>
             Add task
           </button>
+          <SignOutButton redirectUrl="/">
+            <button className="flex items-center gap-2 px-3 py-2 bg-white border border-black/10 rounded-lg text-xs text-gray-500 hover:bg-gray-50 transition-colors">
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 2H3a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h2M9 10l3-3-3-3M12 7H5" />
+              </svg>
+              Log out
+            </button>
+          </SignOutButton>
         </div>
       </div>
 
@@ -222,6 +267,21 @@ export default function DashboardPage() {
           <canvas ref={chartRef} />
         </div>
       </div>
+
+      {/* Open Add Task Modal */}
+      <Modal
+        open={addTaskModal}
+        onClose={handleClose}
+        aria-labelledby="modal-modal-title"
+        aria-describedby="modal-modal-description"
+      >
+        <Box sx={{ ...style}}>
+          <AddTask onClose={handleClose} onSave={setTaskData} taskData={taskData} />
+        </Box>
+       
+      </Modal>
+
+
 
     </div>
   )
