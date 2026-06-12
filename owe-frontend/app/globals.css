@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+@theme {
+  --color-sidebar: #1A1A2E;
+  --color-primary: #7F77DD;
+}
+
+@layer components {
+
+  .sidebar {
+    @apply w-[220px] h-full bg-sidebar pt-7 flex flex-col flex-shrink-0;
+  }
+}
+
+@import "tailwindcss";
+
+@theme {
+  --color-sidebar:   #1A1A2E;
+  --color-primary:   #7F77DD;
+  --color-secondary: #534AB7;
+  --color-success:   #1D9E75;
+  --color-warning:   #EF9F27;
+  --color-danger:    #D85A30;
+  --color-surface:   #F7F7F5;
+
+  --font-family-sans: 'Inter', sans-serif;
+}
+
+@layer components {
+  .btn-primary {
+    background-color: var(--color-primary);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: opacity 0.15s;
+  }
+  .btn-primary:hover {
+    opacity: 0.85;
+  }
+
+  .sidebar-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 20px;
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    transition: color 0.15s;
+    text-decoration: none;
+  }
+  .sidebar-item:hover {
+    color: rgba(255, 255, 255, 0.8);
+  }
+  .sidebar-item.active {
+    color: white;
+    background-color: rgba(127, 119, 221, 0.2);
+    border-right: 2px solid var(--color-primary);
+  }
+}
