@@ -1,8 +1,9 @@
 'use client'
-
+import {useEffect, useState} from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
+import { categoryColors } from "@/utils/constants"
 
 const navLinks = [
   {
@@ -63,7 +64,12 @@ export default function Sidebar() {
     .map((part) => part[0])
     .join('')
     .slice(0, 2)
-    .toUpperCase()
+    .toUpperCase();
+  // const [categories, setCategories] = useState([]);
+
+  useEffect( () => {
+    
+  }, [] )
 
 
   return (
