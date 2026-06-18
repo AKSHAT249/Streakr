@@ -1,20 +1,24 @@
 import { useState } from "react";
+import axios from 'axios';
 
 const CATEGORIES = ["Work", "Personal", "Shopping", "Health", "Finance", "Other"];
 const PRIORITIES = ["Low", "Medium", "High", "Urgent"];
 const REPEATS = ["Daily", "Weekdays", "Weekly", "Monthly"];
 
 export default function AddTaskModal({ onClose, onSave, data }) {
-  const [taskName, setTaskName] = useState("");
-  const [category, setCategory] = useState("Work");
-  const [priority, setPriority] = useState("Medium");
-  const [repeat, setRepeat] = useState("Daily");
 
-  const handleSave = () => {
-    if (!taskName.trim()) return;
-    onSave({...data,  taskName, category, priority, repeat: repeat.toLowerCase(), status: false });
+  const handleSave =async () => {
+    const response = await axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL}/addTask`, data );
+    if(response){
+      alert(response.message || response.error);
+    }
+    
     onClose();
   };
+
+  const handleChange = (e) => {
+    onSave({...data, [e.target.name]:e.target.value})
+  }
 
   return (
     <div className="modal-overlay">
@@ -25,8 +29,9 @@ export default function AddTaskModal({ onClose, onSave, data }) {
           <label>TASK NAME</label>
           <input
             type="text"
-            value={taskName}
-            onChange={(e) => setTaskName(e.target.value)}
+            name="taskName"
+            value={data.taskName}
+            onChange={(e) => handleChange(e)}
             placeholder="Enter task name"
           />
         </div>
@@ -34,13 +39,15 @@ export default function AddTaskModal({ onClose, onSave, data }) {
         <div className="row">
           <div className="field">
             <label>CATEGORY</label>
-            <select value={category} onChange={(e) => setCategory(e.target.value)}>
-              {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+            <select name="category" value={data.category} onChange={(e) => handleChange(e)}>
+              {CATEGORIES.map((c) => <option key={c}>
+                {c}
+                </option>)}
             </select>
           </div>
           <div className="field">
             <label>PRIORITY</label>
-            <select value={priority} onChange={(e) => setPriority(e.target.value)}>
+            <select name="priority" value={data.priority} onChange={(e) => handleChange(e)}>
               {PRIORITIES.map((p) => <option key={p}>{p}</option>)}
             </select>
           </div>
@@ -52,8 +59,10 @@ export default function AddTaskModal({ onClose, onSave, data }) {
             {REPEATS.map((r) => (
               <button
                 key={r}
-                className={`pill ${repeat === r ? "active" : ""}`}
-                onClick={() => setRepeat(r)}
+                name={r}
+                value={data.repeat}
+                className={`pill ${data.repeat == r ? "active" : ""}`}
+                onClick={(e) => onSave({...data, ['repeat']:r})}
               >
                 {r}
               </button>

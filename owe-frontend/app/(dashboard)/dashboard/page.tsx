@@ -37,24 +37,26 @@ const catStyle: Record<string, string> = {
 export default function DashboardPage() {
   const chartRef = useRef<HTMLCanvasElement>(null)
   const [addTaskModal, setAddTaskModal] = useState(false);
-  const currentUser = useSelector(
-    (state) => state.currentUser.user
-  );
   const { user } = useUser();
-
-  console.log("qwsdfrgtreqweer", currentUser)
   const [taskData, setTaskData] = useState({
     taskName:'',
     category:'work',
-    priority:'high',
+    priority:'medium',
     repeat:'',
     userId:user?.id
   });
 
-  console.log('qswdf', taskData)
-
   const handleClose = () => {
     setAddTaskModal(false);
+    setTaskData(
+      {
+        taskName:'',
+        category:'Work',
+        priority:'Medium',
+        repeat:'Daily',
+        userId:user?.id
+      }
+    )
   }
 
 
@@ -252,7 +254,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Chart ── */}
-      <div className="bg-white border border-black/8 rounded-xl p-5">
+      {/* <div className="bg-white border border-black/8 rounded-xl p-5">
         <div className="flex items-start justify-between mb-4">
           <div>
             <h2 className="text-sm font-semibold text-gray-900">Weekly progress</h2>
@@ -266,7 +268,7 @@ export default function DashboardPage() {
         <div className="relative h-[140px] md:h-[160px]">
           <canvas ref={chartRef} />
         </div>
-      </div>
+      </div> */}
 
       {/* Open Add Task Modal */}
       <Modal
@@ -276,7 +278,7 @@ export default function DashboardPage() {
         aria-describedby="modal-modal-description"
       >
         <Box sx={{ ...style}}>
-          <AddTask onClose={handleClose} onSave={setTaskData} taskData={taskData} />
+          <AddTask onClose={handleClose} onSave={setTaskData} data={taskData} />
         </Box>
        
       </Modal>

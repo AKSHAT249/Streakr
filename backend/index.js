@@ -1,10 +1,12 @@
 import express from "express";
 import 'dotenv/config';
+import cors from "cors"; 
 import pool from './db.js';
 
 
 
 const app = express();
+app.use(cors());
 app.use(express.json());
 
 app.get('/', (req, res) => {
@@ -38,9 +40,13 @@ app.post("/addTask", async (req, res) => {
             return res.status(400).json({error:'All fields are required'});
         }
 
+        const normalizedCategory = category?.toLowerCase();
+        const normalizedPriority = priority?.toLowerCase();
+        const normalizedRepeat= repeat?.toLowerCase();
+
         const result = await pool.query(
             'INSERT INTO usertask (user_id, task_name, category, priority, repeat) VALUES ($1, $2, $3, $4, $5)',
-            [userId, taskName, category, priority, repeat] 
+            [userId, taskName, normalizedCategory, normalizedPriority, normalizedRepeat] 
         );
 
         if(result){
