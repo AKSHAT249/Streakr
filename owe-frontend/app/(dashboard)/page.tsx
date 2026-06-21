@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { SignIn, SignUp, useAuth, useUser } from '@clerk/nextjs';
 import { useDispatch } from "react-redux";
-import { setCurrentUser } from "@/store/currentUserSlice"
 
 
 export default function DashboardHomePage() {

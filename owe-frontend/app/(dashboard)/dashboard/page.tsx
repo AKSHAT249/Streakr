@@ -1,13 +1,15 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react';
-import { SignOutButton, useUser } from '@clerk/nextjs';
+import { useEffect, useRef, useState, useMemo } from 'react';
+import { useClerk, useUser } from '@clerk/nextjs';
+import { SignOutButton } from '@clerk/nextjs';
 import AddTask from '@/components/AddTask';
 import Box from '@mui/material/Box';
 import Modal from '@mui/material/Modal';
 import Button from '@mui/material/Button';
 import { useDispatch } from "react-redux";
 import { useSelector } from "react-redux";
+import axios from "axios";
 
 
 const style = {
@@ -15,29 +17,50 @@ const style = {
   display: 'flex',
 };
 
-const tasks = [
-  { name: 'Review design mockups', category: 'Work',     color: '#7F77DD', catClass: 'cat-work',     days: [true,  true,  true,  false, false], pct: 60,  done: true  },
-  { name: 'Morning run 5km',       category: 'Health',   color: '#1D9E75', catClass: 'cat-health',   days: [true,  false, false, false, false], pct: 20,  done: false },
-  { name: 'Read 30 pages',         category: 'Personal', color: '#EF9F27', catClass: 'cat-personal', days: [true,  true,  true,  false, false], pct: 80,  done: true  },
-  { name: 'React course module',   category: 'Learning', color: '#D85A30', catClass: 'cat-learning', days: [false, true,  false, false, false], pct: 40,  done: false },
-]
+interface UserTask {
+  task_name: string;
+  color?: string;
+  done: boolean;
+  category: string;
+  created_at:string;
+  priority:string;
+  repeat:string;
+  task_id: string;
+  user_id: string;
+}
 
-const weekDays  = ['Mon 9', 'Tue 10', 'Wed 11', 'Thu 12', 'Fri 13']
-const todayIdx  = 2
+const todayDate = new Date().getDate();
 const chartData = [55, 70, 45, 80, 60, 90, 67]
 const chartDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 const catStyle: Record<string, string> = {
-  Work:     'bg-[#EEEDFE] text-[#534AB7]',
-  Health:   'bg-[#E1F5EE] text-[#0F6E56]',
-  Personal: 'bg-[#FAEEDA] text-[#854F0B]',
-  Learning: 'bg-[#FAECE7] text-[#993C1D]',
+  work:     'bg-[#EEEDFE] text-[#534AB7]',
+  health:   'bg-[#E1F5EE] text-[#0F6E56]',
+  personal: 'bg-[#FAEEDA] text-[#854F0B]',
+  learning: 'bg-[#FAECE7] text-[#993C1D]',
+}
+
+const getWeekDates = () => {
+  const date = new Date();
+  const today = new Date(date);
+  const dayOfWeek = today.getDay();
+  const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  today.setDate(today.getDate() + diffToMonday);
+
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    return d.toISOString().split("T")[0]; // "YYYY-MM-DD"
+  });
 }
 
 export default function DashboardPage() {
   const chartRef = useRef<HTMLCanvasElement>(null)
   const [addTaskModal, setAddTaskModal] = useState(false);
   const { user } = useUser();
+  const [userTask, setUserTask] = useState<UserTask[]>([]);
+  const [userWeekData, setUserWeekData] = useState([]);
+  const { signOut } = useClerk();
   const [taskData, setTaskData] = useState({
     taskName:'',
     category:'work',
@@ -45,6 +68,11 @@ export default function DashboardPage() {
     repeat:'',
     userId:user?.id
   });
+
+  const handleLogout = () => {
+    signOut({ redirectUrl: '/' });
+  };
+  const weekDates = getWeekDates();
 
   const handleClose = () => {
     setAddTaskModal(false);
@@ -58,6 +86,30 @@ export default function DashboardPage() {
       }
     )
   }
+
+  const fetchUserTask = async (userId:String) => {
+    const result = await axios.get(`${process.env.NEXT_PUBLIC_BACKEND_URL}/getTask/${userId}`);
+    if(result){
+      setUserTask(result.data);
+    }
+  };
+
+  const fetchUserWeekData = async (userId:String, startDate, endDate) => {
+    const result = await axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL}/tasks/week/${userId}`,{startDate, endDate});
+    if(result){
+      setUserWeekData(result.data);
+    }
+  }
+
+  useEffect(() => {
+    const userId = user?.id;
+    const startDate = weekDates[0];
+    const endDate = weekDates[weekDates.length -1];
+    
+    fetchUserTask(userId);
+    fetchUserWeekData(userId, startDate, endDate);
+
+  }, [user] )
 
 
 
@@ -111,6 +163,43 @@ export default function DashboardPage() {
     return () => { if (chart && typeof (chart as { destroy?: () => void }).destroy === 'function') (chart as { destroy: () => void }).destroy() }
   }, [])
 
+  const handleToggle = async (status = false, taskId, weekDate) => {
+    const userId = user?.id;
+    const result = await axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL}/updateTask/${userId}`, {status, taskId, weekDate});
+
+    if(result){
+      console.log("rrrrrrrrAfterClickToggle", result)
+    }
+
+    const startDate = weekDates[0];
+    const endDate = weekDates[weekDates.length -1];
+    await fetchUserWeekData(userId, startDate, endDate);
+
+
+  }
+
+  const toLocalYMD = (isoString: string) => {
+    const d = new Date(isoString);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const taskLookup = useMemo(() => {
+    return userWeekData.reduce((acc, task) => {
+      const date = toLocalYMD(task.date);
+  
+      if (!acc[task.task_id]) {
+        acc[task.task_id] = {};
+      }
+  
+      acc[task.task_id][date] = task.is_done;
+  
+      return acc;
+    }, {} as Record<string, Record<string, boolean>>);
+  }, [userWeekData]);
+
   return (
     <div className="p-6 md:p-7 max-w-[1100px]">
 
@@ -133,14 +222,15 @@ export default function DashboardPage() {
             </svg>
             Add task
           </button>
-          <SignOutButton redirectUrl="/">
-            <button className="flex items-center gap-2 px-3 py-2 bg-white border border-black/10 rounded-lg text-xs text-gray-500 hover:bg-gray-50 transition-colors">
-              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M5 2H3a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h2M9 10l3-3-3-3M12 7H5" />
-              </svg>
-              Log out
-            </button>
-          </SignOutButton>
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 px-3 py-2 bg-white border border-black/10 rounded-lg text-xs text-gray-500 hover:bg-gray-50 transition-colors"
+          >
+            <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 2H3a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h2M9 10l3-3-3-3M12 7H5" />
+            </svg>
+            Log out
+          </button>
         </div>
       </div>
 
@@ -163,7 +253,7 @@ export default function DashboardPage() {
       {/* ── Table ── */}
       <div className="bg-white border border-black/8 rounded-xl overflow-hidden mb-5">
         <div className="flex items-center justify-between px-5 py-3 border-b border-black/7">
-          <span className="text-sm font-semibold text-gray-900">Task tracker</span>
+          <span className="text-sm font-semibold text-gray-900">Task tracker 12</span>
           <div className="flex gap-2">
             {['All', 'Work', 'Health', 'Personal'].map((f, i) => (
               <button key={f} className={`text-[11px] px-3 py-1 rounded-full font-medium ${i === 0 ? 'bg-[#EEEDFE] text-[#534AB7]' : 'bg-[#F1EFE8] text-gray-500 hover:bg-gray-100'}`}>
@@ -180,21 +270,27 @@ export default function DashboardPage() {
               <tr className="bg-gray-50 border-b border-black/7">
                 <th className="text-left px-4 py-2.5 text-[11px] font-semibold text-gray-400 tracking-wide w-52">Task</th>
                 <th className="text-left px-3 py-2.5 text-[11px] font-semibold text-gray-400 tracking-wide w-24">Category</th>
-                {weekDays.map((d, i) => (
-                  <th key={d} className={`text-center px-3 py-2.5 text-[11px] font-semibold tracking-wide w-16 ${i === todayIdx ? 'text-primary' : 'text-gray-400'}`}>
-                    {d}
-                  </th>
-                ))}
+                {weekDates.map((dateStr, i) => {
+                  const d = new Date(dateStr);
+                  const date = d.getDate();
+                  const month = d.getMonth() + 1;
+                  const weekday = d.toLocaleDateString("en-US", { weekday: "short" });
+                  return (
+                    <th key={date} className={`text-center px-3 py-2.5 text-nowrap text-[11px] font-semibold tracking-wide w-16 ${date === todayDate ? 'text-primary' : 'text-gray-400'}`}>
+                      {date == todayDate ? `Today` : `${date} ${weekday}`}
+                    </th>
+                  )
+                })}
                 <th className="text-left px-3 py-2.5 text-[11px] font-semibold text-gray-400 tracking-wide">Progress</th>
               </tr>
             </thead>
             <tbody>
-              {tasks.map(task => (
-                <tr key={task.name} className="border-b border-black/5 last:border-0 hover:bg-violet-50/40 transition-colors">
+              {userTask && userTask.map(task => (
+                <tr key={task.task_name} className="border-b border-black/5 last:border-0 hover:bg-violet-50/40 transition-colors">
                   <td className="px-4 py-3">
-                    <div className={`flex items-center gap-2 text-[12px] font-medium ${task.done ? 'line-through text-gray-300' : 'text-gray-800'}`}>
+                    <div className={`flex items-center gap-2 text-[12px] font-medium`}>
                       <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: task.color }} />
-                      {task.name}
+                      {task.task_name}
                     </div>
                   </td>
                   <td className="px-3 py-3">
@@ -202,24 +298,37 @@ export default function DashboardPage() {
                       {task.category}
                     </span>
                   </td>
-                  {task.days.map((checked, i) => (
+                  {weekDates.map((w, i) => {
+                    const isDone = taskLookup[task.task_id]?.[w] ?? false;
+                    const date = new Date().getDate();
+                    const isToday = date == todayDate;
+                    return (
                     <td key={i} className="px-3 py-3 text-center">
-                      <div className={`w-4 h-4 rounded mx-auto flex items-center justify-center cursor-pointer transition-colors
-                        ${checked ? 'bg-primary border-primary' : i === todayIdx ? 'bg-violet-50 border border-primary' : 'border border-gray-200'}`}>
-                        {checked && (
+                      <div
+                        onClick={() => handleToggle(!isDone, task.task_id, w)}
+                        className={`w-4 h-4 rounded mx-auto flex items-center justify-center transition-colors
+                          ${isDone 
+                            ? 'bg-primary border-primary cursor-pointer' 
+                            : isToday 
+                              ? 'bg-violet-50 border border-primary cursor-pointer' 
+                              : 'border border-gray-200 cursor-not-allowed'
+                          }`}
+                      >
+                        {isDone && (
                           <svg width="9" height="9" viewBox="0 0 9 9" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                             <polyline points="1.5,4.5 3.5,6.5 7.5,2.5" />
                           </svg>
                         )}
                       </div>
                     </td>
-                  ))}
-                  <td className="px-3 py-3">
+                  )
+})}
+                  {/* <td className="px-3 py-3">
                     <div className="h-1.5 bg-violet-100 rounded-full w-20">
                       <div className="h-1.5 bg-primary rounded-full" style={{ width: `${task.pct}%` }} />
                     </div>
                     <div className="text-[10px] text-gray-400 mt-1">{task.pct}%</div>
-                  </td>
+                  </td> */}
                 </tr>
               ))}
             </tbody>
