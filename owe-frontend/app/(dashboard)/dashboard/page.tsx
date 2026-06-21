@@ -337,7 +337,7 @@ export default function DashboardPage() {
 
         {/* Mobile task list */}
         <div className="md:hidden divide-y divide-black/5">
-          {tasks.map(task => (
+          {/* {tasks.map(task => (
             <div key={task.name} className="flex items-center gap-3 px-4 py-3">
               <div className={`w-4 h-4 rounded flex items-center justify-center cursor-pointer flex-shrink-0
                 ${task.done ? 'bg-primary' : 'border border-primary bg-violet-50'}`}>
@@ -358,7 +358,7 @@ export default function DashboardPage() {
                 <div className="text-[10px] text-gray-400 mt-1">{task.pct}%</div>
               </div>
             </div>
-          ))}
+          ))} */}
         </div>
       </div>
 
