@@ -10,6 +10,7 @@ import Button from '@mui/material/Button';
 import { useDispatch } from "react-redux";
 import { useSelector } from "react-redux";
 import axios from "axios";
+import { TotalTasks, CompletedTask, AverageWeekChecker } from "@/components/index";
 
 
 const style = {
@@ -20,13 +21,14 @@ const style = {
 interface UserTask {
   task_name: string;
   color?: string;
-  done: boolean;
+  is_done?: boolean;
   category: string;
   created_at:string;
   priority:string;
   repeat:string;
   task_id: string;
   user_id: string;
+  date?: string;
 }
 
 const todayDate = new Date().getDate();
@@ -54,6 +56,8 @@ const getWeekDates = () => {
   });
 }
 
+
+
 export default function DashboardPage() {
   const chartRef = useRef<HTMLCanvasElement>(null)
   const [addTaskModal, setAddTaskModal] = useState(false);
@@ -68,6 +72,10 @@ export default function DashboardPage() {
     repeat:'',
     userId:user?.id
   });
+  const [totalTask, setTotalTask] = useState(0);
+  const [todayPendingTask, setTodayPendingTask] = useState(0);
+
+  
 
   const handleLogout = () => {
     signOut({ redirectUrl: '/' });
@@ -87,14 +95,18 @@ export default function DashboardPage() {
     )
   }
 
-  const fetchUserTask = async (userId:String) => {
+  const fetchUserTask = async (userId:String | undefined) => {
     const result = await axios.get(`${process.env.NEXT_PUBLIC_BACKEND_URL}/getTask/${userId}`);
     if(result){
       setUserTask(result.data);
+      setTotalTask(result.data.length)
     }
   };
 
-  const fetchUserWeekData = async (userId:String, startDate, endDate) => {
+  const fetchUserWeekData = async (userId:string | undefined, startDate:Date | undefined, endDate:Date) => {
+    if(!userId){
+      return ;
+    }
     const result = await axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL}/tasks/week/${userId}`,{startDate, endDate});
     if(result){
       setUserWeekData(result.data);
@@ -102,12 +114,15 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
-    const userId = user?.id;
+    const userId: string | undefined = user?.id;
+    if(userId == undefined){
+        return
+    }
     const startDate = weekDates[0];
     const endDate = weekDates[weekDates.length -1];
     
     fetchUserTask(userId);
-    fetchUserWeekData(userId, startDate, endDate);
+    fetchUserWeekData(userId, new Date(startDate), new Date(endDate));
 
   }, [user] )
 
@@ -163,17 +178,13 @@ export default function DashboardPage() {
     return () => { if (chart && typeof (chart as { destroy?: () => void }).destroy === 'function') (chart as { destroy: () => void }).destroy() }
   }, [])
 
-  const handleToggle = async (status = false, taskId, weekDate) => {
+  const handleToggle = async (status:boolean = false, taskId: string, weekDate: Date) => {
     const userId = user?.id;
     const result = await axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL}/updateTask/${userId}`, {status, taskId, weekDate});
 
-    if(result){
-      console.log("rrrrrrrrAfterClickToggle", result)
-    }
-
     const startDate = weekDates[0];
     const endDate = weekDates[weekDates.length -1];
-    await fetchUserWeekData(userId, startDate, endDate);
+    await fetchUserWeekData(userId, new Date(startDate), new Date(endDate));
 
 
   }
@@ -187,18 +198,97 @@ export default function DashboardPage() {
   };
 
   const taskLookup = useMemo(() => {
-    return userWeekData.reduce((acc, task) => {
+    return userWeekData.reduce((acc: Record<string, Record<string, boolean>>, task: UserTask) => {
+      if (!task.date) return acc;
       const date = toLocalYMD(task.date);
   
       if (!acc[task.task_id]) {
         acc[task.task_id] = {};
       }
   
-      acc[task.task_id][date] = task.is_done;
+      acc[task.task_id][date] = task.is_done ?? false;
   
       return acc;
     }, {} as Record<string, Record<string, boolean>>);
   }, [userWeekData]);
+
+  const todayStats = useMemo(() => {
+    if (!taskLookup || Object.keys(taskLookup).length === 0) {
+      return {
+        doneToday: 0,
+        pendingToday: 0,
+        doneYesterday: 0,
+        diffFromYesterday: 0,
+      };
+    }
+  
+    const todayStr = toLocalYMD(new Date().toISOString());
+    const yesterdayDate = new Date();
+    yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+    const yesterdayStr = toLocalYMD(yesterdayDate.toISOString());
+  
+    let doneToday = 0;
+    let doneYesterday = 0;
+  
+    Object.values(taskLookup).forEach((dateMap) => {
+      if (todayStr in dateMap && dateMap[todayStr]) {
+        doneToday += 1;
+      }
+      if (yesterdayStr in dateMap && dateMap[yesterdayStr]) {
+        doneYesterday += 1;
+      }
+    });
+  
+    const pendingToday = totalTask - doneToday;
+    const diffFromYesterday = doneToday - doneYesterday;
+  
+    return {
+      doneToday,
+      pendingToday,
+      doneYesterday,
+      diffFromYesterday,
+    };
+  }, [taskLookup, totalTask]); // ✅ added totalTask
+
+  const weeklyStats = useMemo(() => {
+    if (!taskLookup || Object.keys(taskLookup).length === 0) {
+      return {
+        totalDoneThisWeek: 0,
+        totalEntriesThisWeek: 0,
+        completionRate: 0, // as a percentage, e.g. 75 for 75%
+      };
+    }
+  
+    let totalDoneThisWeek = 0;
+    let totalEntriesThisWeek = 0;
+  
+    console.log("taskLookup", taskLookup);
+    Object.values(taskLookup).forEach((dateMap) => {
+      Object.values(dateMap).forEach((isDone) => {
+        totalEntriesThisWeek += 1;
+        if (isDone) {
+          totalDoneThisWeek += 1;
+        }
+      });
+    });
+  
+    const completionRate = totalEntriesThisWeek > 0 
+      ? Math.round((totalDoneThisWeek / totalEntriesThisWeek) * 100) 
+      : 0;
+  
+    return {
+      totalDoneThisWeek,
+      totalEntriesThisWeek,
+      completionRate,
+    };
+  }, [taskLookup, weekDates]);
+
+
+  const hasTaskData = 
+  userWeekData?.length > 0 && 
+  userTask?.length > 0 && 
+  taskLookup && Object.keys(taskLookup).length > 0;
+
 
   return (
     <div className="p-6 md:p-7 max-w-[1100px]">
@@ -236,7 +326,7 @@ export default function DashboardPage() {
 
       {/* ── Stats ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-        {[
+        {/* {[
           { val: '12', lbl: 'Total tasks',      pill: '4 pending',        pillClass: 'bg-amber-50 text-amber-700' },
           { val: '8',  lbl: 'Completed today',  pill: '+3 from yesterday', pillClass: 'bg-emerald-50 text-emerald-700' },
           { val: '67%',lbl: 'Completion rate',  pill: '5-day avg',        pillClass: 'bg-amber-50 text-amber-700' },
@@ -247,7 +337,21 @@ export default function DashboardPage() {
             <div className="text-[11px] text-gray-400 mt-0.5">{s.lbl}</div>
             <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full mt-2 ${s.pillClass}`}>{s.pill}</span>
           </div>
-        ))}
+        ))} */}
+        {hasTaskData && (
+          <>
+          <TotalTasks 
+            totalTask={totalTask} 
+            data={todayStats} 
+          />
+          <CompletedTask 
+            data={todayStats} 
+          />
+          <AverageWeekChecker 
+            data={weeklyStats} 
+          />
+          </>
+        )}
       </div>
 
       {/* ── Table ── */}
@@ -305,7 +409,7 @@ export default function DashboardPage() {
                     return (
                     <td key={i} className="px-3 py-3 text-center">
                       <div
-                        onClick={() => handleToggle(!isDone, task.task_id, w)}
+                        onClick={() => handleToggle(!isDone, task.task_id, new Date(w))}
                         className={`w-4 h-4 rounded mx-auto flex items-center justify-center transition-colors
                           ${isDone 
                             ? 'bg-primary border-primary cursor-pointer' 
