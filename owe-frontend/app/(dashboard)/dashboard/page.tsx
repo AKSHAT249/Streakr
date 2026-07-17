@@ -7,8 +7,6 @@ import AddTask from '@/components/AddTask';
 import Box from '@mui/material/Box';
 import Modal from '@mui/material/Modal';
 import Button from '@mui/material/Button';
-import { useDispatch } from "react-redux";
-import { useSelector } from "react-redux";
 import axios from "axios";
 import { TotalTasks, CompletedTask, AverageWeekChecker } from "@/components/index";
 
@@ -73,7 +71,6 @@ export default function DashboardPage() {
     userId:user?.id
   });
   const [totalTask, setTotalTask] = useState(0);
-  const [todayPendingTask, setTodayPendingTask] = useState(0);
 
   
 
@@ -261,8 +258,7 @@ export default function DashboardPage() {
   
     let totalDoneThisWeek = 0;
     let totalEntriesThisWeek = 0;
-  
-    console.log("taskLookup", taskLookup);
+
     Object.values(taskLookup).forEach((dateMap) => {
       Object.values(dateMap).forEach((isDone) => {
         totalEntriesThisWeek += 1;
@@ -273,7 +269,7 @@ export default function DashboardPage() {
     });
   
     const completionRate = totalEntriesThisWeek > 0 
-      ? Math.round((totalDoneThisWeek / totalEntriesThisWeek) * 100) 
+      ? Math.round((totalDoneThisWeek / 35) * 100) 
       : 0;
   
     return {
@@ -282,6 +278,8 @@ export default function DashboardPage() {
       completionRate,
     };
   }, [taskLookup, weekDates]);
+
+  console.log("weeklyStats", weeklyStats)
 
 
   const hasTaskData = 
@@ -326,18 +324,6 @@ export default function DashboardPage() {
 
       {/* ── Stats ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-        {/* {[
-          { val: '12', lbl: 'Total tasks',      pill: '4 pending',        pillClass: 'bg-amber-50 text-amber-700' },
-          { val: '8',  lbl: 'Completed today',  pill: '+3 from yesterday', pillClass: 'bg-emerald-50 text-emerald-700' },
-          { val: '67%',lbl: 'Completion rate',  pill: '5-day avg',        pillClass: 'bg-amber-50 text-amber-700' },
-          { val: '6',  lbl: 'Day streak',        pill: 'Personal best!',   pillClass: 'bg-emerald-50 text-emerald-700' },
-        ].map(s => (
-          <div key={s.lbl} className="bg-white border border-black/8 rounded-xl p-4">
-            <div className="text-[22px] font-semibold text-gray-900">{s.val}</div>
-            <div className="text-[11px] text-gray-400 mt-0.5">{s.lbl}</div>
-            <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full mt-2 ${s.pillClass}`}>{s.pill}</span>
-          </div>
-        ))} */}
         {hasTaskData && (
           <>
           <TotalTasks 
@@ -357,7 +343,7 @@ export default function DashboardPage() {
       {/* ── Table ── */}
       <div className="bg-white border border-black/8 rounded-xl overflow-hidden mb-5">
         <div className="flex items-center justify-between px-5 py-3 border-b border-black/7">
-          <span className="text-sm font-semibold text-gray-900">Task tracker 12</span>
+          <span className="text-sm font-semibold text-gray-900">Task tracker</span>
           <div className="flex gap-2">
             {['All', 'Work', 'Health', 'Personal'].map((f, i) => (
               <button key={f} className={`text-[11px] px-3 py-1 rounded-full font-medium ${i === 0 ? 'bg-[#EEEDFE] text-[#534AB7]' : 'bg-[#F1EFE8] text-gray-500 hover:bg-gray-100'}`}>
