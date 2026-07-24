@@ -4,7 +4,7 @@ import { useAuth } from '@clerk/nextjs'
 import Sidebar from '@/components/Sidebar'
 
 export default function DashboardShell({ children }: { children: React.ReactNode }) {
-  const { isSignedIn, isLoaded, user } = useAuth()
+  const { isSignedIn, isLoaded } = useAuth()
 
   if (!isLoaded || !isSignedIn) {
     return <>{children}</>
