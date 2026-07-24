@@ -21,7 +21,7 @@ app.get("/getTask/:id",async (req, res) => {
             'SELECT * FROM usertask WHERE user_id = $1', [id]
         )
         if (result.rows.length == 0){
-            return res.status(404).json({ message: "Task not found" });
+            return res.status(200).json({ message: "No tasks found" });
         }
         res.json(result.rows);
     }catch(error){

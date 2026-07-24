@@ -6,5 +6,8 @@ import AddTask from "./AddTask";
 import TotalTasks from './TotalTasks';
 import CompletedTask from './CompletedTask';
 import AverageWeekChecker from './AverageWeekChecker';
+import ProgressChart from './ProgressChart';
+import DayStreak from './DayStreak';
+import EmptyDashboard from './EmptyDashboard';
 
-export { Dashboard, MyTask, Progress, Sidebar, AddTask, TotalTasks, CompletedTask, AverageWeekChecker }
+export { Dashboard, MyTask, Progress, Sidebar, AddTask, TotalTasks, CompletedTask, AverageWeekChecker, ProgressChart, DayStreak, EmptyDashboard }

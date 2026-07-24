@@ -1,14 +1,12 @@
 'use client'
 
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useClerk, useUser } from '@clerk/nextjs';
-import { SignOutButton } from '@clerk/nextjs';
 import AddTask from '@/components/AddTask';
 import Box from '@mui/material/Box';
 import Modal from '@mui/material/Modal';
-import Button from '@mui/material/Button';
 import axios from "axios";
-import { TotalTasks, CompletedTask, AverageWeekChecker } from "@/components/index";
+import { TotalTasks, CompletedTask, AverageWeekChecker, ProgressChart, DayStreak, EmptyDashboard } from "@/components/index";
 
 
 const style = {
@@ -30,8 +28,6 @@ interface UserTask {
 }
 
 const todayDate = new Date().getDate();
-const chartData = [55, 70, 45, 80, 60, 90, 67]
-const chartDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 const catStyle: Record<string, string> = {
   work:     'bg-[#EEEDFE] text-[#534AB7]',
@@ -57,9 +53,10 @@ const getWeekDates = () => {
 
 
 export default function DashboardPage() {
-  const chartRef = useRef<HTMLCanvasElement>(null)
   const [addTaskModal, setAddTaskModal] = useState(false);
   const { user } = useUser();
+
+  console.log("user", user);
   const [userTask, setUserTask] = useState<UserTask[]>([]);
   const [userWeekData, setUserWeekData] = useState([]);
   const { signOut } = useClerk();
@@ -75,9 +72,9 @@ export default function DashboardPage() {
   
 
   const handleLogout = () => {
-    signOut({ redirectUrl: '/' });
+    signOut({ redirectUrl: '/sign-in' });
   };
-  const weekDates = getWeekDates();
+  const weekDates = getWeekDates(); 
 
   const handleClose = () => {
     setAddTaskModal(false);
@@ -127,54 +124,6 @@ export default function DashboardPage() {
 
   
 
-  useEffect(() => {
-    let chart: unknown = null
-
-    async function loadChart() {
-      const { Chart, registerables } = await import('chart.js')
-      Chart.register(...registerables)
-      if (!chartRef.current) return
-
-      chart = new Chart(chartRef.current, {
-        type: 'line',
-        data: {
-          labels: chartDays,
-          datasets: [{
-            data: chartData,
-            borderColor: '#7F77DD',
-            borderWidth: 2,
-            pointBackgroundColor: '#7F77DD',
-            pointRadius: 3,
-            pointHoverRadius: 5,
-            tension: 0.4,
-            fill: true,
-            backgroundColor: (ctx: { chart: { ctx: CanvasRenderingContext2D; chartArea?: { bottom: number } } }) => {
-              const g = ctx.chart.ctx.createLinearGradient(0, 0, 0, ctx.chart.chartArea?.bottom ?? 200)
-              g.addColorStop(0, 'rgba(127,119,221,0.18)')
-              g.addColorStop(1, 'rgba(127,119,221,0)')
-              return g
-            },
-          }],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false },
-            tooltip: { callbacks: { label: (c) => c.parsed.y + '%' } },
-          },
-          scales: {
-            y: { min: 0, max: 100, ticks: { color: '#888', font: { size: 11 }, callback: (v) => v + '%' }, grid: { color: 'rgba(0,0,0,0.05)' } },
-            x: { ticks: { color: '#888', font: { size: 11 } }, grid: { display: false } },
-          },
-        },
-      })
-    }
-
-    loadChart()
-    return () => { if (chart && typeof (chart as { destroy?: () => void }).destroy === 'function') (chart as { destroy: () => void }).destroy() }
-  }, [])
-
   const handleToggle = async (status:boolean = false, taskId: string, weekDate: Date) => {
     const userId = user?.id;
     const result = await axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL}/updateTask/${userId}`, {status, taskId, weekDate});
@@ -208,6 +157,37 @@ export default function DashboardPage() {
       return acc;
     }, {} as Record<string, Record<string, boolean>>);
   }, [userWeekData]);
+
+  const weeklyChartData = useMemo(() => {
+    const weekRecordCount = Object.values(taskLookup).reduce((acc, dateMap) => {
+      for (const [date, isDone] of Object.entries(dateMap)) {
+        if (isDone) acc[date] = (acc[date] || 0) + 1;
+      }
+      return acc;
+    }, {} as Record<string, number>);
+
+    const dates = getWeekDates();
+    const todayStr = toLocalYMD(new Date().toISOString());
+
+    const chartData = dates.map((date) => {
+      const doneCount = weekRecordCount[date] ?? 0;
+      const d = new Date(date);
+      const isToday = date === todayStr;
+
+      return {
+        day: isToday ? 'Today' : d.toLocaleDateString('en-US', { weekday: 'short' }),
+        completed: doneCount,
+        total: totalTask,
+        isToday,
+      };
+    });
+
+    return { chartData };
+  }, [taskLookup, totalTask]);
+
+
+
+
 
   const todayStats = useMemo(() => {
     if (!taskLookup || Object.keys(taskLookup).length === 0) {
@@ -279,72 +259,120 @@ export default function DashboardPage() {
     };
   }, [taskLookup, weekDates]);
 
-  console.log("weeklyStats", weeklyStats)
 
 
-  const hasTaskData = 
-  userWeekData?.length > 0 && 
-  userTask?.length > 0 && 
-  taskLookup && Object.keys(taskLookup).length > 0;
+
+  const dayStreak = useMemo(() => {
+    if (!taskLookup || Object.keys(taskLookup).length === 0) return 0;
+
+    let streak = 0;
+    const cursor = new Date();
+
+    for (let i = 0; i < 365; i++) {
+      const dateStr = toLocalYMD(cursor.toISOString());
+      const anyDone = Object.values(taskLookup).some((dateMap) => dateMap[dateStr]);
+
+      if (anyDone) {
+        streak += 1;
+        cursor.setDate(cursor.getDate() - 1);
+      } else if (i === 0) {
+        cursor.setDate(cursor.getDate() - 1);
+      } else {
+        break;
+      }
+    }
+
+    return streak;
+  }, [taskLookup]);
+
+  const hasTasks = (userTask?.length ?? 0) > 0;
+
+  const userName = user?.firstName ?? user?.fullName?.split(' ')[0] ?? 'there';
+  const formattedDate = new Date().toLocaleDateString('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
 
 
   return (
-    <div className="p-6 md:p-7 max-w-[1100px]">
+    <div className="mx-auto w-full max-w-[1100px] p-4 sm:p-6 md:p-7">
 
       {/* ── Top bar ── */}
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">My tasks</h1>
-          <p className="text-xs text-gray-400 mt-0.5">Tuesday, 10 June 2025</p>
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">
+            Welcome back, {userName}! 👋
+          </h1>
+          <p className="mt-1 text-sm font-normal text-gray-500">{formattedDate}</p>
         </div>
-        <div className="flex items-center gap-3">
-          <button className="hidden sm:flex items-center gap-2 px-3 py-2 bg-white border border-black/10 rounded-lg text-xs text-gray-500 hover:bg-gray-50 transition-colors">
-            <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-              <circle cx="6" cy="6" r="4" /><line x1="10" y1="10" x2="13" y2="13" />
+
+        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+          <div className="relative w-full sm:w-[280px]">
+            <svg
+              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            >
+              <circle cx="7" cy="7" r="4.5" />
+              <line x1="10.5" y1="10.5" x2="14" y2="14" />
             </svg>
-            Search
-          </button>
-          <button onClick={()=> setAddTaskModal(true)} className="btn-primary flex items-center gap-2">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round">
-              <line x1="7" y1="1" x2="7" y2="13" /><line x1="1" y1="7" x2="13" y2="7" />
-            </svg>
-            Add task
-          </button>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-2 px-3 py-2 bg-white border border-black/10 rounded-lg text-xs text-gray-500 hover:bg-gray-50 transition-colors"
-          >
-            <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 2H3a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h2M9 10l3-3-3-3M12 7H5" />
-            </svg>
-            Log out
-          </button>
+            <input
+              type="search"
+              placeholder="Search tasks..."
+              className="h-10 w-full rounded-2xl border border-gray-200 bg-white pl-10 pr-4 text-sm font-normal text-gray-900 placeholder:text-gray-400 outline-none transition-colors focus:border-primary/40 focus:ring-2 focus:ring-primary/10"
+            />
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setAddTaskModal(true)}
+              className="flex h-10 flex-1 items-center justify-center gap-2 rounded-2xl bg-primary px-5 text-sm font-semibold text-white transition-opacity hover:opacity-90 sm:flex-none"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                <line x1="7" y1="1" x2="7" y2="13" />
+                <line x1="1" y1="7" x2="13" y2="7" />
+              </svg>
+              Add task
+            </button>
+            <button
+              type="button"
+              onClick={handleLogout}
+              aria-label="Log out"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700"
+            >
+              <svg width="16" height="16" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 2H3a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h2M9 10l3-3-3-3M12 7H5" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
 
       {/* ── Stats ── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-        {hasTaskData && (
-          <>
-          <TotalTasks 
-            totalTask={totalTask} 
-            data={todayStats} 
-          />
-          <CompletedTask 
-            data={todayStats} 
-          />
-          <AverageWeekChecker 
-            data={weeklyStats} 
-          />
-          </>
-        )}
+      <div className={`mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 ${hasTasks ? 'lg:grid-cols-3' : 'lg:grid-cols-4'}`}>
+        <TotalTasks totalTask={totalTask} data={todayStats} isEmpty={!hasTasks} />
+        <CompletedTask data={todayStats} isEmpty={!hasTasks} />
+        <AverageWeekChecker data={weeklyStats} isEmpty={!hasTasks} />
+        {!hasTasks && <DayStreak streak={dayStreak} isEmpty />}
       </div>
 
+      {!hasTasks ? (
+        <EmptyDashboard onAddTask={() => setAddTaskModal(true)} />
+      ) : (
+      <>
       {/* ── Table ── */}
-      <div className="bg-white border border-black/8 rounded-xl overflow-hidden mb-5">
-        <div className="flex items-center justify-between px-5 py-3 border-b border-black/7">
+      <div className="mb-5 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+        <div className="flex flex-col gap-3 border-b border-black/7 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <span className="text-sm font-semibold text-gray-900">Task tracker</span>
-          <div className="flex gap-2">
+          <div className="flex gap-2 overflow-x-auto pb-0.5">
             {['All', 'Work', 'Health', 'Personal'].map((f, i) => (
               <button key={f} className={`text-[11px] px-3 py-1 rounded-full font-medium ${i === 0 ? 'bg-[#EEEDFE] text-[#534AB7]' : 'bg-[#F1EFE8] text-gray-500 hover:bg-gray-100'}`}>
                 {f}
@@ -451,23 +479,13 @@ export default function DashboardPage() {
           ))} */}
         </div>
       </div>
+      </>
+      )}
 
       {/* ── Chart ── */}
-      {/* <div className="bg-white border border-black/8 rounded-xl p-5">
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <h2 className="text-sm font-semibold text-gray-900">Weekly progress</h2>
-            <p className="text-[11px] text-gray-400 mt-0.5">Completion rate over last 7 days</p>
-          </div>
-          <div className="flex items-center gap-2 text-[11px] text-gray-400">
-            <span className="w-2 h-2 rounded-full bg-primary" />
-            Completion %
-          </div>
-        </div>
-        <div className="relative h-[140px] md:h-[160px]">
-          <canvas ref={chartRef} />
-        </div>
-      </div> */}
+      <div className="mt-1">
+        <ProgressChart chartData={weeklyChartData.chartData} />
+      </div>
 
       {/* Open Add Task Modal */}
       <Modal
