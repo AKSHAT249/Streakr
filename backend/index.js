@@ -26,7 +26,7 @@ app.get("/getTask/:id",async (req, res) => {
         res.json(result.rows);
     }catch(error){
         console.error("Error", error.message);
-        res.status(500).json({ error: "Server error in fetchTask" });
+        res.status(500).json({ error: "Server error in fetchTask", message: error.message });
 
     }
 })
