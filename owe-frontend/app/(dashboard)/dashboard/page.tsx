@@ -193,7 +193,7 @@ export default function DashboardPage() {
   };
 
   const taskLookup = useMemo<TaskLookup>(() => {
-    return userWeekData.reduce((acc: Record<string, Record<string, {isDone: boolean, image: string | null, note: string | null}>>, task: UserTask) => {
+    return userWeekData.reduce<TaskLookup>((acc: Record<string, Record<string, {isDone: boolean, image: string | null, note: string | null}>>, task: UserTask) => {
       if (!task.date) return acc;
       const date = toLocalYMD(task.date);
   
@@ -208,10 +208,9 @@ export default function DashboardPage() {
       }
   
       return acc;
-    }, {} as Record<string, Record<string, boolean>>);
+    }, {} as TaskLookup);
   }, [userWeekData]);
 
-  console.log("taskLookup", taskLookup)
 
   const weeklyChartData = useMemo(() => {
     const weekRecordCount = Object.values(taskLookup).reduce((acc: Record<string, number>, dateMap: Record<string, {isDone: boolean}>) => {
