@@ -5,6 +5,7 @@ import pool from './db.js';
 import { uploadRouter }  from "./routes/upload.js";
 import { clerkMiddleware, requireAuth, getAuth } from '@clerk/express';
 import upload from "./config/upload.js";
+import { uploadToCloudinary } from "./config/uploadToCloudinary.js";
 
 const app = express();
 app.use(cors());
@@ -91,10 +92,28 @@ app.post("/api/updateTask", requireAuth(), upload.single("image"), async (req, r
     if (!status || !taskId || !weekDate) {
       return res.status(400).json({ error: "All fields are required" });
     }
-  
-    const imageUrl = image ? image.path : null;
+
+
   
     try {
+
+      let imageUrl = null;
+      if (image) {
+        const originalName = image.originalname
+          .replace(/\.[^/.]+$/, "")   // strip extension
+          .replace(/\s+/g, "-");      // sanitize spaces
+        const timestamp = Date.now();
+  
+        const result = await uploadToCloudinary(image.buffer, {
+          folder: `tasktly/${userId}`,
+          public_id: `${originalName}-${timestamp}`,
+          transformation: [
+            { width: 1200, height: 1200, crop: "limit", quality: "auto:good", fetch_format: "auto" },
+          ],
+        });
+  
+        imageUrl = result.secure_url;
+      }
       const result = await pool.query(
         `INSERT INTO task_completion (user_id, task_id, is_done, checked_at, date, note, image_url)
          VALUES ($1, $2, $3, NOW(), $4, $5, $6)
