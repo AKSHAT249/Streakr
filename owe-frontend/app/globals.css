@@ -125,3 +125,14 @@
            hover:bg-violet-600 font-medium;
   }
 }
+.image_input_wrapper{
+  position: relative;
+  display: flex;
+
+}
+
+.image_input_field{
+  position: relative;
+  /* top: -20px;
+  right: -20px; */
+}

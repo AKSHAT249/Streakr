@@ -2,11 +2,16 @@ import express from "express";
 import 'dotenv/config';
 import cors from "cors"; 
 import pool from './db.js';
-
-
+import { uploadRouter }  from "./routes/upload.js";
+import { clerkMiddleware, requireAuth, getAuth } from '@clerk/express';
+import upload from "./config/upload.js";
 
 const app = express();
 app.use(cors());
+app.use(clerkMiddleware({
+    publishableKey: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
+    secretKey: process.env.CLERK_SECRET_KEY,
+  }));
 app.use(express.json());
 
 app.get('/', (req, res) => {
@@ -74,29 +79,41 @@ app.delete("/deleteTask", async (req, res) => {
 
 
 
-app.post("/updateTask/:id", async (req, res) => {
-    const {id} = req.params;
-    const {status, taskId, weekDate} = req.body;
-    try{
-        const result = await pool.query(
-            `INSERT INTO task_completion (user_id, task_id, is_done, checked_at, date)
-             VALUES ($1, $2, $3, NOW(), $4)
-             ON CONFLICT (user_id, task_id, date)
-             DO UPDATE SET is_done = $3, checked_at = NOW()
-             RETURNING *`,
-            [id, taskId, status, weekDate]   // only 3 params now — no date needed
-          );
-
-        if(result){
-            return res.status(201).json({message:result});
-        }
-
-
-    }catch(error){
-        return res.status(404).json({error:error.message})
-
+app.post("/api/updateTask", requireAuth(), upload.single("image"), async (req, res) => {
+    const { userId } = getAuth(req);
+    const { status, taskId, weekDate, note } = req.body;
+    const image = req.file;
+  
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
     }
-} )
+  
+    if (!status || !taskId || !weekDate) {
+      return res.status(400).json({ error: "All fields are required" });
+    }
+  
+    const imageUrl = image ? image.path : null;
+  
+    try {
+      const result = await pool.query(
+        `INSERT INTO task_completion (user_id, task_id, is_done, checked_at, date, note, image_url)
+         VALUES ($1, $2, $3, NOW(), $4, $5, $6)
+         ON CONFLICT (user_id, task_id, date)
+         DO UPDATE SET
+           is_done = $3,
+           checked_at = NOW(),
+           note = $5,
+           image_url = COALESCE($6, task_completion.image_url)
+         RETURNING *`,
+        [userId, taskId, status, weekDate, note ?? null, imageUrl]
+      );
+  
+      return res.status(200).json({ message: "Task updated", data: result.rows[0] });
+    } catch (error) {
+      console.error("Error updating task:", error);
+      return res.status(500).json({ error: error.message });
+    }
+  });
 
 
 app.post("/tasks/week/:userId", async (req, res) => {
@@ -105,7 +122,7 @@ app.post("/tasks/week/:userId", async (req, res) => {
   
     try {
       const result = await pool.query(
-        `SELECT ut.task_id, ut.user_id, ut.task_name, ut.category, tc.is_done, tc.date
+        `SELECT ut.task_id, ut.user_id, ut.task_name, ut.category, tc.is_done, tc.date, tc.note, tc.image_url
         FROM public.usertask ut
         LEFT JOIN public.task_completion tc
         ON ut.task_id = tc.task_id and ut.user_id = tc.user_id and tc.date between $2 and $3

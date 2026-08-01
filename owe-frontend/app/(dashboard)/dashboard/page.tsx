@@ -1,12 +1,14 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react';
-import { useClerk, useUser } from '@clerk/nextjs';
+import { useClerk, useUser, useAuth } from '@clerk/nextjs';
 import AddTask from '@/components/AddTask';
 import Box from '@mui/material/Box';
+import CameraEnhanceIcon from '@mui/icons-material/CameraEnhance';
 import Modal from '@mui/material/Modal';
 import axios from "axios";
-import { TotalTasks, CompletedTask, AverageWeekChecker, ProgressChart, DayStreak, EmptyDashboard } from "@/components/index";
+
+import { TotalTasks, CompletedTask, AverageWeekChecker, ProgressChart, DayStreak, EmptyDashboard, ProofModal } from "@/components/index";
 
 
 const style = {
@@ -15,6 +17,8 @@ const style = {
 };
 
 interface UserTask {
+  image_url?: string;
+  note?: string;
   task_name: string;
   color?: string;
   is_done?: boolean;
@@ -25,6 +29,21 @@ interface UserTask {
   task_id: string;
   user_id: string;
   date?: string;
+  }
+
+  type TaskRecord = {
+    isDone: boolean;
+    image: string | null;
+    note: string | null;
+  };
+  
+  type TaskLookup = Record<string, Record<string, TaskRecord>>;
+
+
+
+interface UploadImageState {
+  image: File | null;
+  userId: string | undefined;
 }
 
 const todayDate = new Date().getDate();
@@ -55,8 +74,7 @@ const getWeekDates = () => {
 export default function DashboardPage() {
   const [addTaskModal, setAddTaskModal] = useState(false);
   const { user } = useUser();
-
-  console.log("user", user);
+  const { getToken } = useAuth();
   const [userTask, setUserTask] = useState<UserTask[]>([]);
   const [userWeekData, setUserWeekData] = useState([]);
   const { signOut } = useClerk();
@@ -67,6 +85,37 @@ export default function DashboardPage() {
     repeat:'',
     userId:user?.id
   });
+  const [uploadImage, setUploadImage ] = useState<UploadImageState>({
+    image:null,
+    userId:user?.id
+  });
+  const [openModal, setOpenModal] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<{
+    taskObject: object;
+    date: Date;
+    isDone: boolean;
+    image?: string|null; 
+    note?: string;
+  } | null>(null);
+
+  const handleOpenModal = (
+    task: object,
+    isDone: boolean,
+    date: Date,
+    image: string|null,
+    note: string
+  ) => {
+    setSelectedTask({
+      taskObject: task,
+      date,
+      isDone,
+      image: image,
+      note: note
+    });
+  
+    setOpenModal(true);
+  };
+
   const [totalTask, setTotalTask] = useState(0);
 
   
@@ -143,8 +192,8 @@ export default function DashboardPage() {
     return `${year}-${month}-${day}`;
   };
 
-  const taskLookup = useMemo(() => {
-    return userWeekData.reduce((acc: Record<string, Record<string, boolean>>, task: UserTask) => {
+  const taskLookup = useMemo<TaskLookup>(() => {
+    return userWeekData.reduce((acc: Record<string, Record<string, {isDone: boolean, image: string | null, note: string | null}>>, task: UserTask) => {
       if (!task.date) return acc;
       const date = toLocalYMD(task.date);
   
@@ -152,19 +201,28 @@ export default function DashboardPage() {
         acc[task.task_id] = {};
       }
   
-      acc[task.task_id][date] = task.is_done ?? false;
+      acc[task.task_id][date] = {
+        isDone: task.is_done ?? false,
+        image: task.image_url ?? null,
+        note: task.note ?? null,
+      }
   
       return acc;
     }, {} as Record<string, Record<string, boolean>>);
   }, [userWeekData]);
 
+  console.log("taskLookup", taskLookup)
+
   const weeklyChartData = useMemo(() => {
-    const weekRecordCount = Object.values(taskLookup).reduce((acc, dateMap) => {
-      for (const [date, isDone] of Object.entries(dateMap)) {
-        if (isDone) acc[date] = (acc[date] || 0) + 1;
+    const weekRecordCount = Object.values(taskLookup).reduce((acc: Record<string, number>, dateMap: Record<string, {isDone: boolean}>) => {
+      for (const [date, {isDone}] of Object.entries(dateMap)) {
+        if (isDone) {
+          acc[date] = (acc[date] || 0) + 1;
+        }
       }
       return acc;
     }, {} as Record<string, number>);
+
 
     const dates = getWeekDates();
     const todayStr = toLocalYMD(new Date().toISOString());
@@ -382,7 +440,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Desktop table */}
-        <div className="hidden md:block overflow-x-auto">
+        <div className="md:block overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
               <tr className="bg-gray-50 border-b border-black/7">
@@ -400,6 +458,7 @@ export default function DashboardPage() {
                   )
                 })}
                 <th className="text-left px-3 py-2.5 text-[11px] font-semibold text-gray-400 tracking-wide">Progress</th>
+                
               </tr>
             </thead>
             <tbody>
@@ -417,13 +476,17 @@ export default function DashboardPage() {
                     </span>
                   </td>
                   {weekDates.map((w, i) => {
-                    const isDone = taskLookup[task.task_id]?.[w] ?? false;
+                    const isDone = taskLookup[task.task_id]?.[w]?.isDone ?? false;
+                    const image = taskLookup[task.task_id]?.[w]?.image ?? '';
+                    const note = taskLookup[task.task_id]?.[w]?.note ?? '';
+
+                    // const image = taskLookup[task.task_id]?.[w]?.image_url ?? null;
                     const date = new Date().getDate();
                     const isToday = date == todayDate;
                     return (
                     <td key={i} className="px-3 py-3 text-center">
                       <div
-                        onClick={() => handleToggle(!isDone, task.task_id, new Date(w))}
+                        onClick={() => handleOpenModal(task,isDone,new Date(w), image, note)}
                         className={`w-4 h-4 rounded mx-auto flex items-center justify-center transition-colors
                           ${isDone 
                             ? 'bg-primary border-primary cursor-pointer' 
@@ -436,22 +499,28 @@ export default function DashboardPage() {
                           <svg width="9" height="9" viewBox="0 0 9 9" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                             <polyline points="1.5,4.5 3.5,6.5 7.5,2.5" />
                           </svg>
-                        )}
+                        )}                 
                       </div>
                     </td>
                   )
 })}
-                  {/* <td className="px-3 py-3">
+                  <td className="px-3 py-3">
                     <div className="h-1.5 bg-violet-100 rounded-full w-20">
-                      <div className="h-1.5 bg-primary rounded-full" style={{ width: `${task.pct}%` }} />
+                      <div className="h-1.5 bg-primary rounded-full" style={{ width: `${80}%` }} />
                     </div>
-                    <div className="text-[10px] text-gray-400 mt-1">{task.pct}%</div>
-                  </td> */}
+                    <div className="text-[10px] text-gray-400 mt-1">{80}%</div>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        <ProofModal 
+          open={openModal}
+          taskObject={selectedTask}
+          setSelectedTask={setSelectedTask}
+          onClose={() => setOpenModal(false)} 
+        />
 
         {/* Mobile task list */}
         <div className="md:hidden divide-y divide-black/5">

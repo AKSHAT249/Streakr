@@ -9,5 +9,6 @@ import AverageWeekChecker from './AverageWeekChecker';
 import ProgressChart from './ProgressChart';
 import DayStreak from './DayStreak';
 import EmptyDashboard from './EmptyDashboard';
+import ProofModal from "./ProofModal";
 
-export { Dashboard, MyTask, Progress, Sidebar, AddTask, TotalTasks, CompletedTask, AverageWeekChecker, ProgressChart, DayStreak, EmptyDashboard }
+export { Dashboard, MyTask, Progress, Sidebar, AddTask, TotalTasks, CompletedTask, AverageWeekChecker, ProgressChart, DayStreak, EmptyDashboard, ProofModal }
