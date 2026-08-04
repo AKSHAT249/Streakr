@@ -135,8 +135,8 @@ app.post("/api/updateTask", requireAuth(), upload.single("image"), async (req, r
   });
 
 
-app.post("/tasks/week/:userId", async (req, res) => {
-    const { userId } = req.params;
+app.post("/tasks/week", requireAuth(),  async (req, res) => {
+    const { userId } = getAuth(req);
     const { startDate, endDate } = req.body; // e.g. ?startDate=2026-06-15&endDate=2026-06-21
   
     try {

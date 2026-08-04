@@ -7,6 +7,9 @@ import Box from '@mui/material/Box';
 import CameraEnhanceIcon from '@mui/icons-material/CameraEnhance';
 import Modal from '@mui/material/Modal';
 import axios from "axios";
+import dayjs from 'dayjs';
+import isoWeek from 'dayjs/plugin/isoWeek';
+dayjs.extend(isoWeek);
 
 import { TotalTasks, CompletedTask, AverageWeekChecker, ProgressChart, DayStreak, EmptyDashboard, ProofModal } from "@/components/index";
 
@@ -150,7 +153,12 @@ export default function DashboardPage() {
     if(!userId){
       return ;
     }
-    const result = await axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL}/tasks/week/${userId}`,{startDate, endDate});
+    const token = await getToken();
+    const result = await axios.post(`${process.env.NEXT_PUBLIC_BACKEND_URL}/tasks/week`,{startDate, endDate}, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
     if(result){
       setUserWeekData(result.data);
     }

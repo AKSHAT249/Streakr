@@ -1,21 +1,37 @@
 "use client";
-import { useRef } from "react";
+
+import { useRef, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
+import { formatLocalYMD } from "@/utils/date";
+
+function UploadArrowIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 16V6M12 6l-4 4M12 6l4 4"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M4 18h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 export default function ProofModal({ open, onClose, taskObject, setSelectedTask }) {
-  const fileRef = useRef();
+  const fileRef = useRef(null);
   const { getToken } = useAuth();
+  const [saving, setSaving] = useState(false);
 
-  const getWeekDate = (date) => {
-    if (!date) return "";
-    const d = date instanceof Date ? date : new Date(date);
-    if (isNaN(d.getTime())) return "";
-    return d.toISOString().split("T")[0];
-  };
+  const getWeekDate = (date) => formatLocalYMD(date);
 
   if (!open) return null;
+
   const task = taskObject.taskObject;
   const taskId = task?.task_id;
+  const isDone = Boolean(taskObject?.isDone);
+  const hasImage = Boolean(taskObject?.image);
 
   const handleTaskCompletion = async () => {
     const token = await getToken();
@@ -23,114 +39,79 @@ export default function ProofModal({ open, onClose, taskObject, setSelectedTask 
     formData.append("taskId", taskId);
     formData.append("status", taskObject?.isDone);
     formData.append("weekDate", getWeekDate(taskObject?.date));
-    formData.append("note", taskObject?.note);
-    formData.append("image", taskObject?.image);
+    formData.append("note", taskObject?.note ?? "");
+    if (taskObject?.image != null && taskObject?.image !== "") {
+      formData.append("image", taskObject.image);
+    }
 
-    const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/updateTask`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      body: formData,
-    });
+    setSaving(true);
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/updateTask`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (res) {
+        onClose();
+      }
+    } finally {
+      setSaving(false);
+    }
   };
+
+  const imagePreviewSrc =
+    typeof taskObject?.image === "string"
+      ? taskObject.image
+      : taskObject?.image
+        ? URL.createObjectURL(taskObject.image)
+        : null;
 
   return (
     <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(15, 15, 20, 0.5)",
-        backdropFilter: "blur(3px)",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        zIndex: 999,
-        padding: 20,
-      }}
+      className="fixed inset-0 z-[999] flex items-center justify-center bg-[#0f0f14]/50 p-5 backdrop-blur-[3px]"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="proof-modal-title"
       onClick={onClose}
     >
       <div
+        className="w-full max-w-[400px] overflow-hidden rounded-[20px] bg-white shadow-[0_24px_64px_rgba(0,0,0,0.22)]"
         onClick={(e) => e.stopPropagation()}
-        style={{
-          width: "100%",
-          maxWidth: 380,
-          background: "#fff",
-          borderRadius: 18,
-          boxShadow: "0 20px 60px rgba(0,0,0,.25)",
-          overflow: "hidden",
-          fontFamily: "Inter, sans-serif",
-        }}
       >
         {/* Header */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            padding: "18px 20px",
-            borderBottom: "1px solid #F0EEFB",
-          }}
-        >
+        <div className="flex items-center justify-between border-b border-[#F0EEFB] px-5 py-4">
           <h3
-            style={{
-              margin: 0,
-              fontSize: 17,
-              fontWeight: 700,
-              color: "#1A1A1A",
-              letterSpacing: "-0.01em",
-            }}
+            id="proof-modal-title"
+            className="truncate pr-3 text-[17px] font-bold tracking-tight text-gray-900"
           >
-            {task.task_name}
+            {task?.task_name}
           </h3>
-
           <button
+            type="button"
             onClick={onClose}
-            style={{
-              border: "none",
-              background: "#F5F4FA",
-              width: 28,
-              height: 28,
-              borderRadius: "50%",
-              fontSize: 16,
-              cursor: "pointer",
-              color: "#777",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              lineHeight: 1,
-              transition: "background .15s ease",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "#EBE9F7")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "#F5F4FA")}
+            aria-label="Close"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F5F4FA] text-lg leading-none text-gray-500 transition-colors hover:bg-[#EBE9F7] hover:text-gray-700"
           >
             ×
           </button>
         </div>
 
         {/* Body */}
-        <div style={{ padding: "20px 20px 22px" }}>
-          {/* Checkbox */}
+        <div className="space-y-5 px-5 py-5">
+          {/* Completed */}
           <label
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              cursor: "pointer",
-              fontSize: 14,
-              fontWeight: 500,
-              color: "#333",
-              marginBottom: 22,
-              padding: "10px 12px",
-              borderRadius: 10,
-              background: taskObject?.isDone ? "#F3F0FF" : "#FAFAFA",
-              border: `1px solid ${taskObject?.isDone ? "#DCD3FF" : "#EEEEEE"}`,
-              transition: "all .15s ease",
-            }}
+            className={`flex cursor-pointer items-center gap-3 rounded-xl border px-3.5 py-3 text-sm font-medium text-gray-800 transition-colors ${
+              isDone
+                ? "border-[#DCD3FF] bg-[#F3F0FF]"
+                : "border-gray-200 bg-[#FAFAFA] hover:border-gray-300"
+            }`}
           >
             <input
               type="checkbox"
-              checked={taskObject?.isDone}
+              checked={isDone}
               onChange={() =>
                 setSelectedTask((prev) =>
                   prev
@@ -138,195 +119,97 @@ export default function ProofModal({ open, onClose, taskObject, setSelectedTask 
                         ...prev,
                         isDone: !prev.isDone,
                       }
-                    : null
+                    : null,
                 )
               }
-              style={{
-                width: 18,
-                height: 18,
-                accentColor: "#7C5CFC",
-                cursor: "pointer",
-              }}
+              className="h-[18px] w-[18px] cursor-pointer rounded accent-primary"
             />
             Mark as completed
           </label>
 
           {/* Upload */}
-          <p
-            style={{
-              margin: "0 0 8px",
-              fontSize: 12,
-              fontWeight: 700,
-              color: "#8A8A8A",
-              textTransform: "uppercase",
-              letterSpacing: "0.04em",
-            }}
-          >
-            Upload Proof <span style={{ fontWeight: 400, textTransform: "none" }}>(optional)</span>
-          </p>
+          <div>
+            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-400">
+              Upload proof{" "}
+              <span className="font-normal normal-case text-gray-400">(optional)</span>
+            </p>
 
-          <div
-            style={{
-              position: "relative",
-              border: taskObject?.image ? "1px solid #E6E1FB" : "2px dashed #D7C8FF",
-              borderRadius: 12,
-              minHeight: 96,
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-              cursor: "pointer",
-              background: taskObject?.image ? "#fff" : "#FAF8FF",
-              marginBottom: 20,
-              overflow: "hidden",
-              transition: "border-color .15s ease, background .15s ease",
-            }}
-            onClick={() => fileRef.current?.click()}
-            onMouseEnter={(e) => {
-              if (!taskObject?.image) e.currentTarget.style.background = "#F5F0FF";
-            }}
-            onMouseLeave={(e) => {
-              if (!taskObject?.image) e.currentTarget.style.background = "#FAF8FF";
-            }}
-          >
-            {taskObject?.image ? (
-              <div
-                style={{
-                  position: "relative",
-                  width: "100%",
-                  padding: 12,
-                  display: "flex",
-                  justifyContent: "center",
-                }}
-              >
-                <img
-                  src={
-                    typeof taskObject.image === "string"
-                      ? taskObject.image
-                      : URL.createObjectURL(taskObject.image)
-                  }
-                  alt="Preview"
-                  style={{
-                    width: 96,
-                    height: 96,
-                    objectFit: "cover",
-                    borderRadius: 10,
-                    boxShadow: "0 2px 8px rgba(0,0,0,.12)",
-                  }}
-                />
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedTask({ ...taskObject, image: null });
-                  }}
-                  style={{
-                    position: "absolute",
-                    top: 6,
-                    right: "calc(50% - 48px - 6px)",
-                    width: 22,
-                    height: 22,
-                    borderRadius: "50%",
-                    border: "none",
-                    background: "rgba(0,0,0,0.55)",
-                    color: "#fff",
-                    fontSize: 13,
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    lineHeight: 1,
-                  }}
-                  title="Remove image"
-                >
-                  ×
-                </button>
-              </div>
-            ) : (
-              <span
-                style={{
-                  color: "#7C5CFC",
-                  fontWeight: 600,
-                  fontSize: 13.5,
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 4,
-                }}
-              >
-                <span style={{ fontSize: 20 }}>⬆</span>
-                Choose Image
-              </span>
-            )}
+            <div
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") fileRef.current?.click();
+              }}
+              className={`relative flex min-h-[104px] cursor-pointer items-center justify-center overflow-hidden rounded-xl transition-colors ${
+                hasImage
+                  ? "border border-[#E6E1FB] bg-white"
+                  : "border-2 border-dashed border-primary/35 bg-[#FAF8FF] hover:border-primary/50 hover:bg-[#F5F0FF]"
+              }`}
+              onClick={() => fileRef.current?.click()}
+            >
+              {hasImage && imagePreviewSrc ? (
+                <div className="flex w-full justify-center py-3">
+                  <div className="relative inline-block p-1">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={imagePreviewSrc}
+                    alt="Proof preview"
+                    className="h-24 w-24 rounded-xl object-cover shadow-md"
+                  />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedTask({ ...taskObject, image: null });
+                    }}
+                    className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-sm text-white transition-opacity hover:bg-black/70"
+                    title="Remove image"
+                  >
+                    ×
+                  </button>
+                  </div>
+                </div>
+              ) : (
+                <span className="flex flex-col items-center gap-1.5 text-primary">
+                  <UploadArrowIcon />
+                  <span className="text-sm font-semibold">Choose image</span>
+                </span>
+              )}
 
-            <input
-              ref={fileRef}
-              type="file"
-              hidden
-              accept="image/*"
-              onChange={(e) =>
-                setSelectedTask({ ...taskObject, image: e.target.files?.[0] || null })
-              }
-            />
+              <input
+                ref={fileRef}
+                type="file"
+                hidden
+                accept="image/*"
+                onChange={(e) =>
+                  setSelectedTask({ ...taskObject, image: e.target.files?.[0] || null })
+                }
+              />
+            </div>
           </div>
 
           {/* Notes */}
-          <p
-            style={{
-              margin: "0 0 8px",
-              fontSize: 12,
-              fontWeight: 700,
-              color: "#8A8A8A",
-              textTransform: "uppercase",
-              letterSpacing: "0.04em",
-            }}
-          >
-            Add Notes <span style={{ fontWeight: 400, textTransform: "none" }}>(optional)</span>
-          </p>
+          <div>
+            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-400">
+              Add notes{" "}
+              <span className="font-normal normal-case text-gray-400">(optional)</span>
+            </p>
+            <textarea
+              rows={3}
+              value={taskObject?.note ?? ""}
+              onChange={(e) => setSelectedTask({ ...taskObject, note: e.target.value })}
+              placeholder="Write a note..."
+              className="box-border w-full resize-none rounded-xl border border-gray-200 px-3.5 py-3 text-sm text-gray-800 outline-none transition-shadow placeholder:text-gray-400 focus:border-primary/40 focus:ring-2 focus:ring-primary/15"
+            />
+          </div>
 
-          <textarea
-            rows={3}
-            value={taskObject.note}
-            onChange={(e) => setSelectedTask({ ...taskObject, note: e.target.value })}
-            placeholder="Write a note..."
-            style={{
-              width: "100%",
-              resize: "none",
-              border: "1px solid #E6E6E6",
-              borderRadius: 10,
-              padding: "12px 14px",
-              fontSize: 14,
-              fontFamily: "inherit",
-              outline: "none",
-              boxSizing: "border-box",
-              marginBottom: 22,
-              color: "#333",
-              transition: "border-color .15s ease",
-            }}
-            onFocus={(e) => (e.currentTarget.style.borderColor = "#B9A8FF")}
-            onBlur={(e) => (e.currentTarget.style.borderColor = "#E6E6E6")}
-          />
-
-          {/* Button */}
           <button
+            type="button"
+            disabled={saving}
             onClick={handleTaskCompletion}
-            style={{
-              width: "100%",
-              border: "none",
-              padding: "13px",
-              borderRadius: 10,
-              background: "#7C5CFC",
-              color: "#fff",
-              fontSize: 15,
-              fontWeight: 600,
-              cursor: "pointer",
-              boxShadow: "0 4px 14px rgba(124, 92, 252, 0.35)",
-              transition: "background .15s ease, transform .1s ease",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "#6D4CEF")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "#7C5CFC")}
-            onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.98)")}
-            onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
+            className="w-full rounded-xl bg-primary py-3.5 text-[15px] font-semibold text-white shadow-[0_4px_14px_rgba(127,119,221,0.4)] transition-all hover:opacity-95 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Save
+            {saving ? "Saving…" : "Save"}
           </button>
         </div>
       </div>
